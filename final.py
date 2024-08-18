@@ -48,32 +48,31 @@ def winning_move(board, piece):
         for r in range(3, ROWS):
             if board[r][c] == piece and board[r-1][c+1] == piece and board[r-2][c+2] == piece and board[r-3][c+3] == piece:
                 return True
-            
+
 def score_position(board, piece):
-    #score horizontally
     score = 0
+
+    # Score horizontal
     for r in range(ROWS):
         row_array = [int(i) for i in list(board[r,:])]
         for c in range(COLS - 3):
             window = row_array[c:c+4]
-
             if window.count(piece) == 4:
                 score += 100
             elif window.count(piece) == 3 and window.count(0) == 1:
                 score += 10
     
-    #score vertically
+    # Score vertical
     for c in range(COLS):
         col_array = [int(i) for i in list(board[:,c])]
         for r in range(ROWS - 3):
             window = col_array[r:r+4]
-
             if window.count(piece) == 4:
                 score += 100
             elif window.count(piece) == 3 and window.count(0) == 1:
                 score += 10
     
-    #score diagonal
+    # Score diagonal
     for r in range(ROWS - 3):
         for c in range(COLS - 3):
             window = [board[r+i][c+i] for i in range(4)]
@@ -98,35 +97,97 @@ def get_valid_locations(board):
             valid_locations.append(col)
     return valid_locations
 
+def minimax(board, depth, alpha, beta, maximizing_player):
+    # Get all valid columns where a piece can be dropped
+    valid_locations = get_valid_locations(board)
+    
+    # Check if the game is in win/loss/tie
+    is_terminal = winning_move(board, 1) or winning_move(board, 2) or len(valid_locations) == 0
+
+    # Base case: if depth is 0 or the game is over
+    if depth == 0 or is_terminal:
+        if is_terminal:
+            # If the game is over and player 1 (change this if maximizing piece changes) wins
+            if winning_move(board, 1):
+                return (None, float('inf'))
+            # If the game is over and player 2 (change this if maximizing piece changes) wins
+            elif winning_move(board, 2):
+                return (None, float('-inf'))
+            else:
+                # Game is over with no valid moves left, which means it's a tie
+                return (None, 0)
+        else:
+            # Subtracting the score of player 2 from player 1 to prioritize maximizing player 1's position
+            return (None, score_position(board, 1) - score_position(board, 2))
+
+    # If it's the maximizing player's turn
+    if maximizing_player:
+        value = float('-inf') 
+        best_col = random.choice(valid_locations)  #Random best move to start
+
+        for col in valid_locations:
+            row = get_next_open_row(board, col)
+            temp_board = board.copy()  
+            drop_piece(temp_board, row, col, 1)  #drop simulation piece
+
+            #Recursively call minimax for the minimizing player's turn with decreased depth
+            _, new_score = minimax(temp_board, depth - 1, alpha, beta, False)
+
+            #Update the best score and best column if a better score is found
+            if new_score > value:
+                value = new_score
+                best_col = col
+
+            # Alpha-beta pruning: update alpha and prune the search if possible
+            alpha = max(alpha, value)
+            if alpha >= beta:
+                break  # Prune the remaining branches
+
+        return best_col, value
+
+    # If it's the minimizing player's turn 
+    else:
+        value = float('inf')  
+        best_col = random.choice(valid_locations)  # Random best move to start
+
+        for col in valid_locations:
+            row = get_next_open_row(board, col)
+            temp_board = board.copy()  # Copy the current board to simulate the move
+            drop_piece(temp_board, row, col, 2)  # Simulate dropping a piece for player 2
+
+            #Recursively call minimax for the maximizing player's turn with decreased depth
+            _, new_score = minimax(temp_board, depth - 1, alpha, beta, True)
+
+            #Update the best score and best column if a better score is found
+            if new_score < value:
+                value = new_score
+                best_col = col
+
+            #Alpha-beta pruning
+            beta = min(beta, value)
+            if beta <= alpha:
+                break  #Prune the remaining branches
+
+        return best_col, value
+
+
 def pick_best_move(board, player, pause):
     piece = player['piece']
     if pause:
         # Wait a little.
         time.sleep(0.7)
 
-    # Test code
-    # Need to generate a real move.
-    col = random.randint(0, COLS-1)
-    row = get_next_open_row(board, col)
-    drop_piece(board, row, col, player['piece'])
+    # Minimax algorithm parameters
+    depth = 6  # You can adjust the depth for performance vs. accuracy
+    maximizing_player = (piece == 1) #adjust which piece is being maximized 1 or 2(adjust the conditions in minimax if doing this as well)
 
-    valid_locations = get_valid_locations(board)
-    best_score = 0
-    best_col = random.choice(valid_locations)
-    for col in valid_locations:
-        row = get_next_open_row(board, col)
-        temp_board = board.copy()
-        drop_piece(temp_board, row, col, piece)
-        score = score_position(temp_board, piece)
-        if score > best_score:
-            best_score = score
-            best_col = col
+    best_col = minimax(board, depth, float('-inf'), float('inf'), maximizing_player)[0]
 
     return best_col
 
 def draw_board(board):
+    w.delete('all')  # Clear canvas
     w.configure(bg='black')
-    w.delete('all')
     w.create_rectangle(left_gap, top_gap, CANVAS_W - right_gap, CANVAS_H - bottom_gap, fill='lightgreen')
 
     for i in range(ROWS):
@@ -159,9 +220,8 @@ def draw_board(board):
     if game['winner'] > '':
         w.create_text(CANVAS_W / 2, CANVAS_H - bottom_gap, text=game['winner'].title() + ' wins', fill=game['winner'],
                       font=tkfont.Font(family='Helvetica', size=30))
-        w.create_rectangle(CANVAS_W - right_gap, CANVAS_H - bottom_gap, CANVAS_W, CANVAS_H, fill = 'white')
+        w.create_rectangle(CANVAS_W - right_gap, CANVAS_H - bottom_gap, CANVAS_W, CANVAS_H, fill='white')
         w.create_text(CANVAS_W - right_gap / 2, CANVAS_H - bottom_gap / 2, text='Play\nagain')
-    w.pack()
     w.update()
 
 def play_move(event):
@@ -170,20 +230,14 @@ def play_move(event):
     if event.y > top_gap or event.x < left_gap or event.x > CANVAS_W + right_gap:
         # Invalid position.
         w.create_text(CANVAS_W / 2, 30, font=tkfont.Font(family='Helvetica', size=20), fill='red',
-                      text='Please click up here to select a column.')
-        return False
-
+                      text='Please click inside the game board!')
+        return
     col = (event.x - left_gap) // spacing
-    if board[ROWS - 1][col] > 0:
-        # This row is full. Let them pick another row. The binding to the click event is still in place.
-        w.create_text(CANVAS_W / 2, 30, font=tkfont.Font(family='Helvetica', size=20), fill='red',
-                      text='That column is full.')
-        return False
-
-    row = get_next_open_row(board, col)
-    board[row][col] = game['player']['piece']
-    draw_board(board)
-    master.quit()
+    if is_valid_location(board, col):
+        row = get_next_open_row(board, col)
+        drop_piece(board, row, col, game['player']['piece'])
+        draw_board(board)
+        master.quit()
 
 def user_settings(event):
     # Check if user is changing players, or if they're ready to start.
@@ -200,7 +254,7 @@ def user_settings(event):
 
 def draw_labels():
     # Show the heading and the descriptions for the player selection buttons.
-    w.delete('all')
+    w.delete('all')  # Clear canvas
     w.configure(bg='white')
     w.create_text(CANVAS_W / 2, 80, text='Connect 4',
                   font=tkfont.Font(family='Helvetica', size=30, weight='bold'))
@@ -245,7 +299,9 @@ def main():
             w.mainloop()
         else:
             # Now play. Tell it to pause if both players are the computer.
-            pick_best_move(game['board'], player, players[0]['player'] == players[1]['player'])
+            col = pick_best_move(game['board'], player, players[0]['player'] == players[1]['player'])
+            row = get_next_open_row(game['board'], col)
+            drop_piece(game['board'], row, col, player['piece'])
         draw_board(game['board'])
 
         if winning_move(game['board'], player['piece']):
@@ -267,7 +323,6 @@ def main():
             draw_labels()
             w.bind("<Button-1>", user_settings)
             mainloop()
-
 
 if __name__ == "__main__":
     master = Tk()
