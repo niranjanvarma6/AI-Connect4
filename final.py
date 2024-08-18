@@ -21,6 +21,7 @@ def create_board():
     return np.zeros((ROWS, COLS), dtype=int)
 
 def drop_piece(board, row, col, piece):
+    # Deposit the requested piece in the given position.
     board[row][col] = piece
 
 def is_valid_location(board, col):
@@ -194,6 +195,8 @@ def draw_board(board):
     w.delete('all')  # Clear canvas
     w.configure(bg='black')
     w.create_rectangle(left_gap, top_gap, CANVAS_W - right_gap, CANVAS_H - bottom_gap, fill='lightgreen')
+    w.create_rectangle(CANVAS_W - right_gap, top_gap, CANVAS_W, 0, fill='white')
+    w.create_text(CANVAS_W - right_gap / 2, top_gap / 2, text='Undo', fill='black')
 
     for i in range(ROWS):
         for j in range(COLS):
@@ -234,8 +237,24 @@ def draw_board(board):
     w.update()
 
 def play_move(event):
-    # User has selected a move. Play it if possible.
+    # User has selected a move (or maybe pressed Undo). Play the move if possible, or do the undo.
     board = game['board']
+
+    if event.y <= top_gap and event.x > CANVAS_W - right_gap:
+        # Undo button. Undo two moves.
+        t = sequence.pop()
+        # The opponent's piece.
+        if t and t['piece'] != game['player']['piece']:
+            board[t['row']][t['col']] = 0
+        else:
+            # It got pressed at the wrong time.
+            return
+        # And remove the current user's piece.
+        t = sequence.pop()
+        board[t['row']][t['col']] = 0
+        draw_board(board)
+        return
+
     if event.y > top_gap or event.x < left_gap or event.x > CANVAS_W + right_gap:
         # Invalid position.
         w.create_text(CANVAS_W / 2, 30, font=tkfont.Font(family='Helvetica', size=20), fill='red',
@@ -245,6 +264,8 @@ def play_move(event):
     if is_valid_location(board, col):
         row = get_next_open_row(board, col)
         drop_piece(board, row, col, game['player']['piece'])
+        # Also, record the sequence of moves for undoing.
+        sequence.append({'piece': game['player']['piece'], 'row': row, 'col': col})
         draw_board(board)
         master.quit()
 
@@ -311,6 +332,8 @@ def main():
             col = pick_best_move(game['board'], player, players[0]['player'] == players[1]['player'])
             row = get_next_open_row(game['board'], col)
             drop_piece(game['board'], row, col, player['piece'])
+            # Record the move for undoing.
+            sequence.append({'piece': player['piece'], 'row': row, 'col': col})
         draw_board(game['board'])
 
         if winning_move(game['board'], player['piece']):
@@ -350,4 +373,5 @@ if __name__ == "__main__":
                'start_y': 300}
     players = [{'piece': 1, 'color': 'red', 'player': 'user'}, {'piece': 2, 'color': 'blue', 'player': 'computer'}]
     game = {'status': 'settings', 'board': create_board(), 'player_no': 0, 'player': players[0], 'winner': ''}
+    sequence = []
     main()
