@@ -27,11 +27,13 @@ def is_valid_location(board, col):
     return board[ROWS-1][col] == 0
 
 def get_next_open_row(board, col):
+    # Select the next open row in the given column.
     for r in range(ROWS):
         if board[r][col] == 0:
             return r
 
 def winning_move(board, piece):
+    # Is this board a winning position for the player with the given piece?
     for c in range(COLS-3):
         for r in range(ROWS):
             if board[r][c] == piece and board[r][c+1] == piece and board[r][c+2] == piece and board[r][c+3] == piece:
@@ -50,6 +52,8 @@ def winning_move(board, piece):
                 return True
 
 def score_position(board, piece):
+    # Heuristic. Detect all the ways the given position has at least 3 in a row for the player with the given piece,
+    # and the fourth is open. If there are three in a row, count 10 points; if 4 in a row, count 100.
     score = 0
 
     # Score horizontal
@@ -91,6 +95,7 @@ def score_position(board, piece):
     return score
 
 def get_valid_locations(board):
+    # Get all the valid columns where a player could play.
     valid_locations = []
     for col in range(COLS):
         if is_valid_location(board, col):
@@ -170,7 +175,6 @@ def minimax(board, depth, alpha, beta, maximizing_player):
 
         return best_col, value
 
-
 def pick_best_move(board, player, pause):
     piece = player['piece']
     if pause:
@@ -178,7 +182,7 @@ def pick_best_move(board, player, pause):
         time.sleep(0.7)
 
     # Minimax algorithm parameters
-    depth = 6  # You can adjust the depth for performance vs. accuracy
+    depth = 7  # You can adjust the depth for performance vs. accuracy
     maximizing_player = (piece == 1) #adjust which piece is being maximized 1 or 2(adjust the conditions in minimax if doing this as well)
 
     best_col = minimax(board, depth, float('-inf'), float('inf'), maximizing_player)[0]
@@ -186,6 +190,7 @@ def pick_best_move(board, player, pause):
     return best_col
 
 def draw_board(board):
+    # Draw the board, including an indication if the game is over, and a "button" to play again.
     w.delete('all')  # Clear canvas
     w.configure(bg='black')
     w.create_rectangle(left_gap, top_gap, CANVAS_W - right_gap, CANVAS_H - bottom_gap, fill='lightgreen')
@@ -218,8 +223,12 @@ def draw_board(board):
         w.create_rectangle(side, top_gap, side + middle_gap, bottom, fill='#ffe333', width=0)
 
     if game['winner'] > '':
-        w.create_text(CANVAS_W / 2, CANVAS_H - bottom_gap, text=game['winner'].title() + ' wins', fill=game['winner'],
-                      font=tkfont.Font(family='Helvetica', size=30))
+        if game['winner'] == 'tie':
+            w.create_text(CANVAS_W / 2, CANVAS_H - bottom_gap, text='Tie game',
+                      fill='black', font=tkfont.Font(family='Helvetica', size=30))
+        else:
+            w.create_text(CANVAS_W / 2, CANVAS_H - bottom_gap, text=game['winner'].title() + ' wins',
+                      fill=game['winner'], font=tkfont.Font(family='Helvetica', size=30))
         w.create_rectangle(CANVAS_W - right_gap, CANVAS_H - bottom_gap, CANVAS_W, CANVAS_H, fill='white')
         w.create_text(CANVAS_W - right_gap / 2, CANVAS_H - bottom_gap / 2, text='Play\nagain')
     w.update()
@@ -230,7 +239,7 @@ def play_move(event):
     if event.y > top_gap or event.x < left_gap or event.x > CANVAS_W + right_gap:
         # Invalid position.
         w.create_text(CANVAS_W / 2, 30, font=tkfont.Font(family='Helvetica', size=20), fill='red',
-                      text='Please click inside the game board!')
+                      text='Please click up here')
         return
     col = (event.x - left_gap) // spacing
     if is_valid_location(board, col):
@@ -307,6 +316,15 @@ def main():
         if winning_move(game['board'], player['piece']):
             game['winner'] = player['color']
             # Show the winner.
+            draw_board(game['board'])
+
+        # Check for a tie.
+        tie = True
+        for c in range(COLS):
+            if game['board'][ROWS - 1][c] == 0:
+                tie = False
+        if tie:
+            game['winner'] = 'tie'
             draw_board(game['board'])
 
         # Change players.
