@@ -53,45 +53,49 @@ def winning_move(board, piece):
                 return True
 
 def score_position(board, piece):
+    def window_count(wn, p):
+        s = 0
+        if window.count(piece) == 4:
+            s= 1000
+        elif window.count(piece) == 3 and window.count(0) == 1:
+            s = 10
+        elif window.count(piece) == 2 and window.count(0) == 2:
+            s = 3
+        elif window.count(piece) == 1 and window.count(0) == 3:
+            s = 1
+        return s
+
     # Heuristic. Detect all the ways the given position has at least 3 in a row for the player with the given piece,
     # and the fourth is open. If there are three in a row, count 10 points; if 4 in a row, count 100.
     score = 0
 
-    # Score horizontal
+    # For each window, or line of 4 locations, check if it gets us points in the heuristic.
+    # So check if this line of four locations -- "window" -- has only the given piece, and score it correspondingly.
+
+    # Score horizontal.
     for r in range(ROWS):
         row_array = [int(i) for i in list(board[r,:])]
         for c in range(COLS - 3):
-            window = row_array[c:c+4]
-            if window.count(piece) == 4:
-                score += 100
-            elif window.count(piece) == 3 and window.count(0) == 1:
-                score += 10
+            window = row_array[c:c + 4]
+            score += window_count(window, piece)
     
     # Score vertical
     for c in range(COLS):
         col_array = [int(i) for i in list(board[:,c])]
         for r in range(ROWS - 3):
-            window = col_array[r:r+4]
-            if window.count(piece) == 4:
-                score += 100
-            elif window.count(piece) == 3 and window.count(0) == 1:
-                score += 10
+            window = col_array[r:r + 4]
+            score += window_count(window, piece)
     
     # Score diagonal
     for r in range(ROWS - 3):
         for c in range(COLS - 3):
-            window = [board[r+i][c+i] for i in range(4)]
-            if window.count(piece) == 4:
-                score += 100
-            elif window.count(piece) == 3 and window.count(0) == 1:
-                score += 10
+            window = [board[r + i][c + i] for i in range(4)]
+            score += window_count(window, piece)
+
     for r in range(ROWS - 3):
         for c in range(COLS - 3):
-            window = [board[r+3-i][c+i] for i in range(4)]
-            if window.count(piece) == 4:
-                score += 100
-            elif window.count(piece) == 3 and window.count(0) == 1:
-                score += 10
+            window = [board[r + 3 - i][c + i] for i in range(4)]
+            score += window_count(window, piece)
 
     return score
 
@@ -136,8 +140,11 @@ def minimax(board, depth, alpha, beta, maximizing_player):
             temp_board = board.copy()  
             drop_piece(temp_board, row, col, 1)  #drop simulation piece
 
-            #Recursively call minimax for the minimizing player's turn with decreased depth
+            # Recursively call minimax for the minimizing player's turn with decreased depth
             _, new_score = minimax(temp_board, depth - 1, alpha, beta, False)
+            # Reduce the score as it's further in the future, to make the game play to win fast and force
+            # opponent to decide on a winning sequence.
+            new_score *= discount_factor * (max_depth - depth)
 
             #Update the best score and best column if a better score is found
             if new_score > value:
@@ -183,10 +190,9 @@ def pick_best_move(board, player, pause):
         time.sleep(0.7)
 
     # Minimax algorithm parameters
-    depth = 7  # You can adjust the depth for performance vs. accuracy
     maximizing_player = (piece == 1) #adjust which piece is being maximized 1 or 2(adjust the conditions in minimax if doing this as well)
 
-    best_col = minimax(board, depth, float('-inf'), float('inf'), maximizing_player)[0]
+    best_col = minimax(board, max_depth, float('-inf'), float('inf'), maximizing_player)[0]
 
     return best_col
 
@@ -374,4 +380,6 @@ if __name__ == "__main__":
     players = [{'piece': 1, 'color': 'red', 'player': 'user'}, {'piece': 2, 'color': 'blue', 'player': 'computer'}]
     game = {'status': 'settings', 'board': create_board(), 'player_no': 0, 'player': players[0], 'winner': ''}
     sequence = []
+    max_depth = 5  # You can adjust the depth for performance vs. accuracy
+    discount_factor = 0.9
     main()
